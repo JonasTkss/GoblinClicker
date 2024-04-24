@@ -1,0 +1,172 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import goblin from "@/public/Goblin.webp";
+import { useToast } from "@/components/ui/use-toast";
+import { Toaster } from "@/components/ui/toaster";
+
+interface DamageMarker {
+  amount: number;
+  isCrit: boolean;
+  id: number; // Using number to simplify, could use string for more complex scenarios
+  x: number; // Position for the marker on the screen
+  y: number;
+}
+
+export default function Settings() {
+  const { toast } = useToast();
+
+  const [money, setMoney] = useState(0);
+  const [multiplier, setMultiplier] = useState(1);
+  const [upgradeCost, setUpgradeCost] = useState(25);
+  const [hp, setHp] = useState(10);
+  const [dmg, setDmg] = useState(1);
+  const [level, setLevel] = useState(1);
+  const [maxHp, setMaxHp] = useState(10);
+  const [doubleClick, setDoubleClick] = useState(false);
+  const [damageMarkers, setDamageMarkers] = useState<DamageMarker[]>([]);
+
+  const buyDouble = () => {
+    if (money >= 1000) {
+      setMoney(money - 1000);
+      setDoubleClick(true);
+      toast({
+        title: "Upgrade successful!",
+        description: "Double Click has been activated!",
+      });
+    }
+  };
+  const upgrade = () => {
+    if (money >= upgradeCost) {
+      setMultiplier(multiplier + 1);
+      setMoney(money - upgradeCost);
+      setUpgradeCost(upgradeCost * 2);
+      setDmg(dmg * 2);
+    }
+  };
+  const dealDmg = () => {
+    const applyDmg = (currentHp: number) => {
+      const isCrit = Math.random() < 0.01;
+      const damageToApply = isCrit ? dmg * 50 : dmg;
+
+      if (isCrit) {
+        toast({
+          title: "Critical Hit!",
+          description: `You hit a critical damage of ${damageToApply}!`,
+        });
+      }
+      const newMarker: DamageMarker = {
+        amount: damageToApply,
+        isCrit,
+        id: Math.random(),
+        x: Math.random() * 100,
+        y: Math.random() * 50,
+      };
+
+      setDamageMarkers((markers) => [...markers, newMarker]);
+      setTimeout(() => {
+        removeDamageMarker(newMarker.id);
+      }, 500);
+      const newHp = currentHp - damageToApply;
+      return newHp > 0 ? newHp : 0;
+    };
+
+    const newHpAfterFirstHit = applyDmg(hp);
+
+    const finalHp = doubleClick
+      ? applyDmg(newHpAfterFirstHit)
+      : newHpAfterFirstHit;
+
+    setHp(finalHp);
+  };
+  const randomMoney =
+    level >= 10
+      ? Math.floor(Math.random() * (250 - 75 + 1)) + 75
+      : Math.floor(Math.random() * (100 - 10 + 1)) + 10;
+  useEffect(() => {
+    if (hp <= 0) {
+      const newLevel = level + 1;
+      const newMaxHp = newLevel * 15;
+
+      setLevel(newLevel);
+      setMaxHp(newMaxHp);
+      setHp(newMaxHp);
+      setMoney(money + randomMoney);
+      toast({
+        title: "Level Up!",
+        description:
+          "You have reached level " +
+          newLevel +
+          "." +
+          " You earned: " +
+          randomMoney,
+      });
+    }
+  }, [hp]);
+  const removeDamageMarker = (id: any) => {
+    setDamageMarkers((currentMarkers) =>
+      currentMarkers.filter((marker) => marker.id !== id),
+    );
+  };
+  return (
+    <main>
+      <h1>Settings</h1>
+      <p>Money: {money}</p>
+      <p>Multiplier: {multiplier}</p>
+      <Button onClick={upgrade} disabled={money < upgradeCost}>
+        {upgradeCost} Upgrade
+      </Button>
+      <Button
+        onClick={buyDouble}
+        disabled={money < 1000 || doubleClick === true}
+      >
+        {doubleClick ? " (Active)" : "Buy Double Click (1000)"}
+      </Button>
+      <div onClick={dealDmg} className="cursor-pointer mt-2">
+        <div
+          className="mt-4 bg-gray-300 rounded overflow-hidden"
+          style={{ width: "100px", height: "24px" }}
+        >
+          <div
+            style={{ width: `${(hp / maxHp) * 100}%` }}
+            className="bg-red-500 text-center py-1 text-white transition-all duration-300 h-full"
+          >
+            {hp} HP
+          </div>
+        </div>
+
+        <div>Damage: {dmg}</div>
+        <div>Level {level}</div>
+        <div className="relative">
+          <Image
+            src={goblin}
+            width={100}
+            height={100}
+            alt="goblin "
+            className="active:scale-90"
+          />
+          {damageMarkers.map((marker) => (
+            <div
+              key={marker.id}
+              className={`absolute transition-opacity duration-1000 ease-out ${
+                marker.isCrit
+                  ? "text-white bg-green-500 px-4 py-2 rounded-full"
+                  : "text-white bg-red-500 px-4 py-2 rounded-full"
+              }`}
+              style={{
+                left: `${marker.x}px`,
+                top: `${marker.y}px`,
+              }}
+              onAnimationEnd={() => removeDamageMarker(marker.id)}
+            >
+              {marker.amount}
+            </div>
+          ))}
+        </div>
+      </div>
+      <Toaster />
+    </main>
+  );
+}
